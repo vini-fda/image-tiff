@@ -10,6 +10,7 @@ extern crate jpeg;
 extern crate weezl;
 
 mod bytecast;
+pub mod complex_int;
 pub mod decoder;
 pub mod encoder;
 mod error;

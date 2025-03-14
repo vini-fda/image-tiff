@@ -239,5 +239,6 @@ pub enum SampleFormat(u16) unknown("An unknown extension sample format") {
     Int = 2,
     IEEEFP = 3,
     Void = 4,
+    ComplexInt = 5,
 }
 }

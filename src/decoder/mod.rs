@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Seek};
 
+use crate::complex_int::{CInt16, CInt32};
 use crate::tags::{
     CompressionMethod, PhotometricInterpretation, PlanarConfiguration, Predictor, SampleFormat,
     Tag, Type,
@@ -44,6 +45,10 @@ pub enum DecodingResult {
     I32(Vec<i32>),
     /// A vector of 64 bit signed ints
     I64(Vec<i64>),
+    /// A vector of complex numbers with 16-bit integer components
+    CInt16(Vec<CInt16>),
+    /// A vector of complex numbers with 32-bit integer components
+    CInt32(Vec<CInt32>),
 }
 
 impl DecodingResult {
@@ -135,6 +140,22 @@ impl DecodingResult {
         }
     }
 
+    fn new_cint16(size: usize, limits: &Limits) -> TiffResult<DecodingResult> {
+        if size > limits.decoding_buffer_size / 4 {
+            Err(TiffError::LimitsExceeded)
+        } else {
+            Ok(DecodingResult::CInt16(vec![CInt16::default(); size]))
+        }
+    }
+
+    fn new_cint32(size: usize, limits: &Limits) -> TiffResult<DecodingResult> {
+        if size > limits.decoding_buffer_size / 8 {
+            Err(TiffError::LimitsExceeded)
+        } else {
+            Ok(DecodingResult::CInt32(vec![CInt32::default(); size]))
+        }
+    }
+
     pub fn as_buffer(&mut self, start: usize) -> DecodingBuffer {
         match *self {
             DecodingResult::U8(ref mut buf) => DecodingBuffer::U8(&mut buf[start..]),
@@ -148,6 +169,8 @@ impl DecodingResult {
             DecodingResult::I16(ref mut buf) => DecodingBuffer::I16(&mut buf[start..]),
             DecodingResult::I32(ref mut buf) => DecodingBuffer::I32(&mut buf[start..]),
             DecodingResult::I64(ref mut buf) => DecodingBuffer::I64(&mut buf[start..]),
+            DecodingResult::CInt16(ref mut buf) => DecodingBuffer::CInt16(&mut buf[start..]),
+            DecodingResult::CInt32(ref mut buf) => DecodingBuffer::CInt32(&mut buf[start..]),
         }
     }
 }
@@ -176,6 +199,10 @@ pub enum DecodingBuffer<'a> {
     I32(&'a mut [i32]),
     /// A slice of 64 bits signed ints
     I64(&'a mut [i64]),
+    /// A slice of complex numbers with 16-bit integer components
+    CInt16(&'a mut [CInt16]),
+    /// A slice of complex numbers with 32-bit integer components
+    CInt32(&'a mut [CInt32]),
 }
 
 impl<'a> DecodingBuffer<'a> {
@@ -192,6 +219,8 @@ impl<'a> DecodingBuffer<'a> {
             DecodingBuffer::F16(buf) => bytecast::f16_as_ne_mut_bytes(buf),
             DecodingBuffer::F32(buf) => bytecast::f32_as_ne_mut_bytes(buf),
             DecodingBuffer::F64(buf) => bytecast::f64_as_ne_mut_bytes(buf),
+            DecodingBuffer::CInt16(buf) => bytecast::cint16_as_ne_mut_bytes(buf),
+            DecodingBuffer::CInt32(buf) => bytecast::cint32_as_ne_mut_bytes(buf),
         }
     }
 }
@@ -1045,6 +1074,22 @@ impl<R: Read + Seek> Decoder<R> {
                 n if n <= 16 => DecodingResult::new_i16(buffer_size, &self.limits),
                 n if n <= 32 => DecodingResult::new_i32(buffer_size, &self.limits),
                 n if n <= 64 => DecodingResult::new_i64(buffer_size, &self.limits),
+                n => Err(TiffError::UnsupportedError(
+                    TiffUnsupportedError::UnsupportedBitsPerChannel(n),
+                )),
+            },
+            SampleFormat::ComplexInt => match max_sample_bits {
+                // For complex integers, each sample actually contains two values (real + imaginary)
+                // We need to handle the bits per sample differently - they represent the
+                // bits per component (real or imaginary), not the total size
+                16 | 32 => {
+                    // 16 bits per component = 32 bits total (16 for real + 16 for imaginary)
+                    DecodingResult::new_cint16(buffer_size, &self.limits)
+                }
+                64 => {
+                    // 32 bits per component = 64 bits total (32 for real + 32 for imaginary)
+                    DecodingResult::new_cint32(buffer_size, &self.limits)
+                }
                 n => Err(TiffError::UnsupportedError(
                     TiffUnsupportedError::UnsupportedBitsPerChannel(n),
                 )),

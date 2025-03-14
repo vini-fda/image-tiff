@@ -14,6 +14,8 @@ use std::{mem, slice};
 
 use half::f16;
 
+use crate::complex_int::{CInt16, CInt32};
+
 macro_rules! integral_slice_as_bytes{($int:ty, $const:ident $(,$mut:ident)*) => {
     pub(crate) fn $const(slice: &[$int]) -> &[u8] {
         assert!(mem::align_of::<$int>() <= mem::size_of::<$int>());
@@ -35,3 +37,23 @@ integral_slice_as_bytes!(i64, i64_as_ne_bytes, i64_as_ne_mut_bytes);
 integral_slice_as_bytes!(f32, f32_as_ne_bytes, f32_as_ne_mut_bytes);
 integral_slice_as_bytes!(f16, f16_as_ne_bytes, f16_as_ne_mut_bytes);
 integral_slice_as_bytes!(f64, f64_as_ne_bytes, f64_as_ne_mut_bytes);
+
+pub fn cint16_as_ne_mut_bytes(slice: &mut [CInt16]) -> &mut [u8] {
+    assert!(mem::align_of::<CInt16>() <= mem::size_of::<CInt16>());
+    unsafe { slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, mem::size_of_val(slice)) }
+}
+
+pub fn cint16_as_ne_bytes(slice: &[CInt16]) -> &[u8] {
+    assert!(mem::align_of::<CInt16>() <= mem::size_of::<CInt16>());
+    unsafe { slice::from_raw_parts(slice.as_ptr() as *const u8, mem::size_of_val(slice)) }
+}
+
+pub fn cint32_as_ne_mut_bytes(slice: &mut [CInt32]) -> &mut [u8] {
+    assert!(mem::align_of::<CInt32>() <= mem::size_of::<CInt32>());
+    unsafe { slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, mem::size_of_val(slice)) }
+}
+
+pub fn cint32_as_ne_bytes(slice: &[CInt32]) -> &[u8] {
+    assert!(mem::align_of::<CInt32>() <= mem::size_of::<CInt32>());
+    unsafe { slice::from_raw_parts(slice.as_ptr() as *const u8, mem::size_of_val(slice)) }
+}
